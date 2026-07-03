@@ -1,25 +1,25 @@
-# Automatic Prefix Caching
+# 自动前缀缓存 (Automatic Prefix Caching)
 
-## Introduction
+## 简介
 
-Automatic Prefix Caching (APC in short) caches the KV cache of existing queries, so that a new query can directly reuse the KV cache if it shares the same prefix with one of the existing queries, allowing the new query to skip the computation of the shared part.
+自动前缀缓存（简称 APC）会缓存现有查询的 KV 缓存（Key-Value Cache），这样当新查询与现有查询共享相同的前缀时，新查询可以直接复用这部分 KV 缓存，从而跳过共享部分的计算。
 
 !!! note
-    Technical details on how vLLM implements APC can be found [here](../design/prefix_caching.md).
+    关于 vLLM 内部如何实现 APC 的技术细节，可以参考[这里](../design/prefix_caching.md)。
 
-## Enabling APC in vLLM
+## 在 vLLM 中启用 APC
 
-Set `enable_prefix_caching=True` in vLLM engine to enable APC. Here is an example:
+在 vLLM 引擎中设置 `enable_prefix_caching=True` 即可启用 APC。以下是一个示例：
 
 [examples/features/automatic_prefix_caching/automatic_prefix_caching_offline.py](../../examples/features/automatic_prefix_caching/automatic_prefix_caching_offline.py)
 
-## Example workloads
+## 典型应用场景
 
-We describe two example workloads, where APC can provide huge performance benefit:
+以下是 APC 能带来巨大性能收益的两个典型应用场景：
 
-- Long document query, where the user repeatedly queries the same long document (e.g. software manual or annual report) with different queries. In this case, instead of processing the long document again and again, APC allows vLLM to process this long document *only once*, and all future requests can avoid recomputing this long document by reusing its KV cache. This allows vLLM to serve future requests with much higher throughput and much lower latency.
-- Multi-round conversation, where the user may chat with the application multiple times in the same chatting session. In this case, instead of processing the whole chatting history again and again, APC allows vLLM to reuse the processing results of the chat history across all future rounds of conversation, allowing vLLM to serve future requests with much higher throughput and much lower latency.
+- **长文档查询**：用户使用不同的问题重复查询同一个长文档（例如软件手册或年度报告）。在这种情况下，APC 允许 vLLM *仅处理一次* 该长文档，而无需一次又一次地重新处理它，所有未来的请求都可以通过复用其 KV 缓存来避免重复计算该长文档。这使得 vLLM 能够以更高的吞吐量和更低的延迟来响应后续请求。
+- **多轮对话**：用户在同一个聊天会话中多次与应用进行对话。在这种情况下，APC 允许 vLLM 在所有后续对话中复用聊天历史的计算结果，而不是一遍又一遍地处理整个聊天历史，从而使 vLLM 能够以更高的吞吐量和更低的延迟来服务后续请求。
 
-## Limits
+## 局限性
 
-APC in general does not reduce the performance of vLLM. With that being said, APC only reduces the time of processing the queries (the prefilling phase) and does not reduce the time of generating new tokens (the decoding phase). So APC does not bring performance gain when vLLM spends most of the time generating answers to the queries (e.g. when the length of the answer is long), or new queries do not share the same prefix with any of existing queries (so that the computation cannot be reused).
+总体而言，APC 不会降低 vLLM 的性能。话虽如此，APC 仅仅减少了处理查询的时间（预填充阶段，prefilling phase），而不会减少生成新 Token 的时间（解码阶段，decoding phase）。因此，当 vLLM 的大部分时间都花在生成查询的回答上（例如回答长度很长时），或者新查询与任何现有查询均不共享相同的前缀时（此时计算无法被复用），APC 不会带来明显的性能提升。
