@@ -1,10 +1,11 @@
-# LoRA 适配器 (LoRA Adapters)
+# LoRA Adapters
 
-本文档向您展示如何在 vLLM 中在基座模型之上使用 [LoRA 适配器](https://arxiv.org/abs/2106.09685)。
+This document shows you how to use [LoRA adapters](https://arxiv.org/abs/2106.09685) with vLLM on top of a base model.
 
-LoRA 适配器可以与任何实现了 [SupportsLoRA][vllm.model_executor.models.interfaces.SupportsLoRA] 的 vLLM 模型一起使用。
+LoRA adapters can be used with any vLLM model that implements [SupportsLoRA][vllm.model_executor.models.interfaces.SupportsLoRA].
 
-适配器可以在每次请求时高效地进行服务，且额外开销极小。首先，我们下载适配器并使用以下代码将其保存在本地：
+Adapters can be efficiently served on a per-request basis with minimal overhead. First we download the adapter(s) and save
+them locally with
 
 ```python
 from huggingface_hub import snapshot_download
@@ -12,7 +13,7 @@ from huggingface_hub import snapshot_download
 sql_lora_path = snapshot_download(repo_id="jeeejeee/llama32-3b-text2sql-spider")
 ```
 
-然后，我们实例化基座模型并传入 `enable_lora=True` 标志：
+Then we instantiate the base model and pass in the `enable_lora=True` flag:
 
 ```python
 from vllm import LLM, SamplingParams
@@ -21,7 +22,9 @@ from vllm.lora.request import LoRARequest
 llm = LLM(model="meta-llama/Llama-3.2-3B-Instruct", enable_lora=True)
 ```
 
-现在，我们可以提交提示词并通过 `lora_request` 参数调用 `llm.generate`。`LoRARequest` 的第一个参数是一个易于识别的人类可读名称，第二个参数是适配器的全局唯一 ID，第三个参数是 LoRA 适配器的本地路径。
+We can now submit the prompts and call `llm.generate` with the `lora_request` parameter. The first parameter
+of `LoRARequest` is a human identifiable name, the second parameter is a globally unique ID for the adapter and
+the third parameter is the path to the LoRA adapter.
 
 ??? code
 
@@ -44,11 +47,12 @@ llm = LLM(model="meta-llama/Llama-3.2-3B-Instruct", enable_lora=True)
     )
     ```
 
-查看 [examples/features/lora/multilora_offline.py](../../examples/features/lora/multilora_offline.py) 以获取如何与异步引擎一起使用 LoRA 适配器以及如何使用更高级配置选项的示例。
+Check out [examples/features/lora/multilora_offline.py](../../examples/features/lora/multilora_offline.py) for an example of how to use LoRA adapters with the async engine and how to use more advanced configuration options.
 
-## 服务 LoRA 适配器 (Serving LoRA Adapters)
+## Serving LoRA Adapters
 
-LoRA 适配模型也可以通过兼容 OpenAI 的 vLLM 服务器进行服务。为此，我们在启动服务器时使用 `--lora-modules {name}={path} {name}={path}` 来指定每个 LoRA 模块：
+LoRA adapted models can also be served with the Open-AI compatible vLLM server. To do so, we use
+`--lora-modules {name}={path} {name}={path}` to specify each LoRA module when we kick off the server:
 
 ```bash
 vllm serve meta-llama/Llama-3.2-3B-Instruct \
@@ -56,9 +60,11 @@ vllm serve meta-llama/Llama-3.2-3B-Instruct \
     --lora-modules sql-lora=jeeejeee/llama32-3b-text2sql-spider
 ```
 
-服务器入口点接受所有其他 LoRA 配置参数（如 `max_loras`、`max_lora_rank`、`max_cpu_loras` 等），这些参数将应用于所有后续请求。在查询 `/models` 端点时，我们应该能看到我们的 LoRA 以及它的基座模型（如果未安装 `jq`，您可以参考 [此指南](https://jqlang.org/download/) 进行安装）：
+The server entrypoint accepts all other LoRA configuration parameters (`max_loras`, `max_lora_rank`, `max_cpu_loras`,
+etc.), which will apply to all forthcoming requests. Upon querying the `/models` endpoint, we should see our LoRA along
+with its base model (if `jq` is not installed, you can follow [this guide](https://jqlang.org/download/) to install it.):
 
-??? console "命令示例"
+??? console "Command"
 
     ```bash
     curl localhost:8000/v1/models | jq .
@@ -79,9 +85,11 @@ vllm serve meta-llama/Llama-3.2-3B-Instruct \
     }
     ```
 
-请求可以通过 `model` 请求参数指定 LoRA 适配器，就像指定任何其他模型一样。请求将根据服务器范围的 LoRA 配置进行处理（即与基座模型请求并行处理，如果 `max_loras` 设置得足够高，还可能与其他 LoRA 适配器请求并行处理）。
+Requests can specify the LoRA adapter as if it were any other model via the `model` request parameter. The requests will be
+processed according to the server-wide LoRA configuration (i.e. in parallel with base model requests, and potentially other
+LoRA adapter requests if they were provided and `max_loras` is set high enough).
 
-以下是一个请求示例：
+The following is an example request
 
 ```bash
 curl http://localhost:8000/v1/completions \
@@ -94,26 +102,28 @@ curl http://localhost:8000/v1/completions \
     }' | jq
 ```
 
-## 动态服务 LoRA 适配器 (Dynamically serving LoRA Adapters)
+## Dynamically serving LoRA Adapters
 
-除了在服务器启动时提供 LoRA 适配器外，vLLM 服务器还支持在运行时通过专用 API 端点和插件动态配置 LoRA 适配器。当需要按需切换模型时，此功能非常有用。
+In addition to serving LoRA adapters at server startup, the vLLM server supports dynamically configuring LoRA adapters at runtime through dedicated API endpoints and plugins. This feature can be particularly useful when the flexibility to change models on-the-fly is needed.
 
-!!! warning "警告"
-    此功能伴随有安全风险。除非处于隔离且完全可信的环境中，否则不应在生产环境中使用。
+!!! warning
+    This feature comes with security risks. It should not be used in production unless it is an isolated, fully trusted environment.
 
-要启用动态 LoRA 配置，请确保将环境变量 `VLLM_ALLOW_RUNTIME_LORA_UPDATING` 设置为 `True`。
+To enable dynamic LoRA configuration, ensure that the environment variable `VLLM_ALLOW_RUNTIME_LORA_UPDATING`
+is set to `True`.
 
 ```bash
 export VLLM_ALLOW_RUNTIME_LORA_UPDATING=True
 ```
 
-### 使用 API 端点
+### Using API Endpoints
 
-加载 LoRA 适配器：
+Loading a LoRA Adapter:
 
-要动态加载 LoRA 适配器，请向 `/v1/load_lora_adapter` 端点发送 POST 请求，并附带要加载的适配器的必要详细信息。请求的 payload 应包含 LoRA 适配器的名称和路径。
+To dynamically load a LoRA adapter, send a POST request to the `/v1/load_lora_adapter` endpoint with the necessary
+details of the adapter to be loaded. The request payload should include the name and path to the LoRA adapter.
 
-动态加载 LoRA 适配器的示例请求：
+Example request to load a LoRA adapter:
 
 ```bash
 curl -X POST http://localhost:8000/v1/load_lora_adapter \
@@ -124,15 +134,17 @@ curl -X POST http://localhost:8000/v1/load_lora_adapter \
 }'
 ```
 
-成功发送请求后，API 将从 `vllm serve` 返回 `200 OK` 状态码，`curl` 将返回响应体：`Success: LoRA adapter 'sql_adapter' added successfully`。如果发生错误（例如找不到或无法加载该适配器），将返回相应的错误信息。
+Upon a successful request, the API will respond with a `200 OK` status code from `vllm serve`, and `curl` returns the response body: `Success: LoRA adapter 'sql_adapter' added successfully`. If an error occurs, such as if the adapter
+cannot be found or loaded, an appropriate error message will be returned.
 
-卸载 LoRA 适配器：
+Unloading a LoRA Adapter:
 
-要卸载先前加载的 LoRA 适配器，请向 `/v1/unload_lora_adapter` 端点发送包含要卸载的适配器名称或 ID 的 POST 请求。
+To unload a LoRA adapter that has been previously loaded, send a POST request to the `/v1/unload_lora_adapter` endpoint
+with the name or ID of the adapter to be unloaded.
 
-成功发送请求后，API 会从 `vllm serve` 返回 `200 OK` 状态码，`curl` 将返回响应体：`Success: LoRA adapter 'sql_adapter' removed successfully`。
+Upon a successful request, the API responds with a `200 OK` status code from `vllm serve`, and `curl` returns the response body: `Success: LoRA adapter 'sql_adapter' removed successfully`.
 
-卸载 LoRA 适配器的示例请求：
+Example request to unload a LoRA adapter:
 
 ```bash
 curl -X POST http://localhost:8000/v1/unload_lora_adapter \
@@ -142,22 +154,24 @@ curl -X POST http://localhost:8000/v1/unload_lora_adapter \
 }'
 ```
 
-### 使用插件 (Using Plugins)
+### Using Plugins
 
-或者，您也可以使用 `LoRAResolver` 插件来动态加载 LoRA 适配器。`LoRAResolver` 插件使您能够从本地和远程源（例如本地文件系统和 S3）加载 LoRA 适配器。在接收到每个请求时，如果包含了一个尚未加载的新模型名称，`LoRAResolver` 将尝试解析并加载相应的 LoRA 适配器。
+Alternatively, you can use the LoRAResolver plugin to dynamically load LoRA adapters. LoRAResolver plugins enable you to load LoRA adapters from both local and remote sources such as local file system and S3. On every request, when there's a new model name that hasn't been loaded yet, the LoRAResolver will try to resolve and load the corresponding LoRA adapter.
 
-如果您想从不同源加载 LoRA 适配器，可以设置多个 `LoRAResolver` 插件。例如，您可以配置一个用于本地文件的解析器，以及另一个用于 S3 存储的解析器。vLLM 将加载它找到的第一个 LoRA 适配器。
+You can set up multiple LoRAResolver plugins if you want to load LoRA adapters from different sources. For example, you might have one resolver for local files and another for S3 storage. vLLM will load the first LoRA adapter that it finds.
 
-您可以安装现有插件，也可以实现自己的插件。默认情况下，vLLM 附带了一个[从本地目录加载 LoRA 适配器的解析器插件，以及一个从 Hugging Face Hub 上的存储库加载 LoRA 适配器的解析器插件](https://github.com/vllm-project/vllm/tree/main/vllm/plugins/lora_resolvers)。要启用其中任一解析器，您必须将 `VLLM_ALLOW_RUNTIME_LORA_UPDATING` 设置为 `True`。
+You can either install existing plugins or implement your own. By default, vLLM comes with a [resolver plugin to load LoRA adapters from a local directory, as well as a resolver plugin to load LoRA adapters from repositories on Hugging Face Hub](https://github.com/vllm-project/vllm/tree/main/vllm/plugins/lora_resolvers)
+To enable either of these resolvers, you must `set VLLM_ALLOW_RUNTIME_LORA_UPDATING` to True.
 
-- 要利用本地目录，请设置 `VLLM_PLUGINS` 以包含 `lora_filesystem_resolver`，并将 `VLLM_LORA_RESOLVER_CACHE_DIR` 设置为本地目录。当 vLLM 收到一个使用 LoRA 适配器 `foobar` 的请求时，它会首先在本地目录中查找名为 `foobar` 的目录，并尝试将其中的内容作为 LoRA 适配器加载。如果成功，请求将正常完成，并且该适配器将随即可供服务器的常规请求使用。
-- 要利用 Hugging Face Hub 上的仓库，请设置 `VLLM_PLUGINS` 以包含 `lora_hf_hub_resolver`，并将 `VLLM_LORA_RESOLVER_HF_REPO_LIST` 设置为 Hugging Face Hub 上以逗号分隔的仓库 ID 列表。当 vLLM 收到对 LoRA 适配器 `my/repo/subpath` 的请求时，如果它存在且包含 `adapter_config.json`，它将下载 `my/repo` 中 `subpath` 处的适配器，然后为该缓存目录构建一个适配器请求，类似于 `lora_filesystem_resolver` 的工作方式。请注意，启用远程下载具有安全风险，且不适用于生产环境。
+- To leverage a local directory, set `VLLM_PLUGINS` to include `lora_filesystem_resolver` and set `VLLM_LORA_RESOLVER_CACHE_DIR` to a local directory. When vLLM receives a request using a LoRA adapter `foobar`,
+it will first look in the local directory for a directory `foobar`, and attempt to load the contents of that directory as a LoRA adapter. If successful, the request will complete as normal and that adapter will then be available for normal use on the server.
+- To leverage repositories on Hugging Face Hub, set `VLLM_PLUGINS` to include `lora_hf_hub_resolver` and set `VLLM_LORA_RESOLVER_HF_REPO_LIST` to a comma separated list of repository IDs on Hugging Face Hub. When vLLM receives a request for the LoRA adapter `my/repo/subpath`, it will download the adapter at the `subpath` of `my/repo` if it exists and contains an `adapter_config.json`, then build a request to the cached dir for the adapter, similar to the `lora_filesystem_resolver`. Please note that enabling remote downloads is insecure and not intended for use in production environments.
 
-或者，您可以参考以下示例步骤来实现自己的插件：
+Alternatively, follow these example steps to implement your own plugin:
 
-1. 实现 `LoRAResolver` 接口。
+1. Implement the LoRAResolver interface.
 
-    ??? code "一个简单的 S3 LoRAResolver 实现示例"
+    ??? code "Example of a simple S3 LoRAResolver implementation"
 
         ```python
         import os
@@ -175,7 +189,7 @@ curl -X POST http://localhost:8000/v1/unload_lora_adapter \
                 s3_path = self.s3_path_format.format(base_model_name=base_model_name, lora_name=lora_name)
                 local_path = self.local_path_format.format(base_model_name=base_model_name, lora_name=lora_name)
 
-                # 将 LoRA 从 S3 下载到本地路径
+                # Download the LoRA from S3 to the local path
                 await self.s3._get(
                     s3_path, local_path, recursive=True, maxdepth=1
                 )
@@ -188,7 +202,7 @@ curl -X POST http://localhost:8000/v1/unload_lora_adapter \
                 return lora_request
         ```
 
-2. 注册 `LoRAResolver` 插件。
+2. Register `LoRAResolver` plugin.
 
     ```python
     from vllm.lora.resolver import LoRAResolverRegistry
@@ -197,15 +211,15 @@ curl -X POST http://localhost:8000/v1/unload_lora_adapter \
     LoRAResolverRegistry.register_resolver("s3_resolver", s3_resolver)
     ```
 
-    有关更多详细信息，请参阅 [vLLM 插件系统](../design/plugin_system.md)。
+    For more details, refer to the [vLLM's Plugins System](../design/plugin_system.md).
 
-### 原地 LoRA 重新加载 (In-Place LoRA Reloading)
+### In-Place LoRA Reloading
 
-动态加载 LoRA 适配器时，您可能需要用更新后的权重替换现有适配器，同时保持名称相同。`load_inplace` 参数启用了此功能。这在异步强化学习设置中非常常见，其中适配器会不断更新和替换，而不会中断正在进行的推理。
+When dynamically loading LoRA adapters, you may need to replace an existing adapter with updated weights while keeping the same name. The `load_inplace` parameter enables this functionality. This commonly occurs in asynchronous reinforcement learning setups, where adapters are continuously updated and swapped in without interrupting ongoing inference.
 
-当 `load_inplace=True` 时，vLLM 将用新适配器替换具有相同名称的现有适配器。
+When `load_inplace=True`, vLLM will replace the existing adapter with the new one.
 
-加载或替换同名 LoRA 适配器的示例请求：
+Example request to load or replace a LoRA adapter with the same name:
 
 ```bash
 curl -X POST http://localhost:8000/v1/load_lora_adapter \
@@ -217,28 +231,29 @@ curl -X POST http://localhost:8000/v1/load_lora_adapter \
 }'
 ```
 
-## `--lora-modules` 的新格式
+## New format for `--lora-modules`
 
-在以前的版本中，用户会通过以下格式（键值对或 JSON 格式）提供 LoRA 模块。例如：
+In the previous version, users would provide LoRA modules via the following format, either as a key-value pair or in JSON format. For example:
 
 ```bash
 --lora-modules  sql-lora=jeeejeee/llama32-3b-text2sql-spider
 ```
 
-这仅包含每个 LoRA 模块的 `name` 和 `path`，但无法指定 `base_model_name`。
-现在，您可以使用 JSON 格式在指定名称和路径的同时指定 `base_model_name`。例如：
+This would only include the `name` and `path` for each LoRA module, but did not provide a way to specify a `base_model_name`.
+Now, you can specify a base_model_name alongside the name and path using JSON format. For example:
 
 ```bash
 --lora-modules '{"name": "sql-lora", "path": "jeeejeee/llama32-3b-text2sql-spider", "base_model_name": "meta-llama/Llama-3.2-3B-Instruct"}'
 ```
 
-为了提供向下兼容支持，您仍然可以使用旧的键值格式（name=path），但在这种情况下 `base_model_name` 将保持未指定状态。
+To provide the backward compatibility support, you can still use the old key-value format (name=path), but the `base_model_name` will remain unspecified in that case.
 
-## 混合使用 2D 和 3D MoE LoRA 适配器
+## Mixing 2D and 3D MoE LoRA Adapters
 
-要在同一个引擎实例中同时服务 2D 格式（基于 `megatron`）和 3D 格式（基于 `peft`）的适配器，请使用 `--enable-mixed-moe-lora-format` 启动服务器，并通过 `is_3d_lora_weight` 字段显式声明每个适配器的结构布局。
+To serve 2D-format(based on `megatron`) and 3D-format (based on `peft`) adapters from the same engine instance, start the server with `--enable-mixed-moe-lora-format`
+and declare the layout of each adapter explicitly via the `is_3d_lora_weight` field.
 
-服务器启动（静态模块）：
+Server startup (static modules):
 
 ```bash
 vllm serve Qwen/Qwen3.6-35B-A3B \
@@ -251,7 +266,7 @@ vllm serve Qwen/Qwen3.6-35B-A3B \
         '{"name": "lora-3d", "path": "jeeejeee/qwen36-35ba3b-moe-all-linear-poken-lora", "is_3d_lora_weight": true}'
 ```
 
-通过 `/v1/load_lora_adapter` 动态加载：
+Dynamic load via `/v1/load_lora_adapter`:
 
 ```bash
 curl -X POST http://localhost:8000/v1/load_lora_adapter \
@@ -263,24 +278,35 @@ curl -X POST http://localhost:8000/v1/load_lora_adapter \
 }'
 ```
 
-!!! warning "警告：您必须了解您的适配器的结构布局"
-    在 `--enable-mixed-moe-lora-format` 下，vLLM 会信任调用者声明的任何 `is_3d_lora_weight` 值 —— 它**不会**检查 checkpoint 以进行验证。错误的声明将把权重加载到错误的堆叠缓冲区中，并在加载时没有任何报错的情况下默默产生垃圾输出。在服务前请确认布局：
+!!! warning "You must know your adapter's layout"
+    Under `--enable-mixed-moe-lora-format`, vLLM trusts whatever
+    `is_3d_lora_weight` the caller declares — it does **not** inspect the
+    checkpoint to verify. A wrong declaration will load weights into the
+    wrong stacked buffers and silently produce garbage outputs, with no
+    error at load time. Confirm the layout before serving:
 
-    - **2D（每个专家独立，megatron 风格）** → 设置 `is_3d_lora_weight: false`。
-      适配器的键（keys）类似于 `...experts.{idx}.gate_proj.lora_A.weight`、`...experts.{idx}.up_proj.lora_A.weight`、`...experts.{idx}.down_proj.lora_A.weight` —— 每个专家有一套对应的键。
-    - **3D（融合，peft 风格）** → 设置 `is_3d_lora_weight: true`。
-      适配器的键（keys）类似于 `...experts.gate_up_proj.lora_A.weight`、`...experts.down_proj.lora_A.weight` —— 这是一个在首个维度（leading dimension）堆叠了所有专家的单一张量。
+    - **2D (per-expert, megatron-style)** → set `is_3d_lora_weight: false`.
+      Adapter keys look like `...experts.{idx}.gate_proj.lora_A.weight`,
+      `...experts.{idx}.up_proj.lora_A.weight`,
+      `...experts.{idx}.down_proj.lora_A.weight` — one set per expert.
+    - **3D (fused, peft-style)** → set `is_3d_lora_weight: true`.
+      Adapter keys look like `...experts.gate_up_proj.lora_A.weight`,
+      `...experts.down_proj.lora_A.weight` — a single tensor that stacks
+      all experts on the leading dim.
 
-当**未**设置 `--enable-mixed-moe-lora-format` 时，`is_3d_lora_weight` 会被忽略：vLLM 将从基座模型的 `is_3d_moe_weight` 选择包装器，且适配器必须与其匹配。对于非 MoE 模型，该字段也会被忽略。
+When `--enable-mixed-moe-lora-format` is **not** set, `is_3d_lora_weight`
+is ignored: vLLM picks the wrapper from the base model's
+`is_3d_moe_weight` and the adapter is required to match. The field is
+also ignored for non-MoE models.
 
-## 模型卡片中的 LoRA 模型谱系 (LoRA model lineage in model card)
+## LoRA model lineage in model card
 
-新格式的 `--lora-modules` 主要是为了支持在模型卡片中显示父模型信息。以下是说明您的当前响应如何支持此功能：
+The new format of `--lora-modules` is mainly to support the display of parent model information in the model card. Here's an explanation of how your current response supports this:
 
-- LoRA 模型 `sql-lora` 的 `parent` 字段现在链接到其基座模型 `meta-llama/Llama-3.2-3B-Instruct`。这正确反映了基座模型与 LoRA 适配器之间的层级关系。
-- `root` 字段指向 LoRA 适配器的文件位置。
+- The `parent` field of LoRA model `sql-lora` now links to its base model `meta-llama/Llama-3.2-3B-Instruct`. This correctly reflects the hierarchical relationship between the base model and the LoRA adapter.
+- The `root` field points to the artifact location of the lora adapter.
 
-??? console "命令输出示例"
+??? console "Command output"
 
     ```bash
     $ curl http://localhost:8000/v1/models
@@ -318,17 +344,17 @@ curl -X POST http://localhost:8000/v1/load_lora_adapter \
     }
     ```
 
-## 多模态模型中的 Tower 和 Connector 的 LoRA 支持
+## LoRA Support for Tower and Connector of Multi-Modal Model
 
-目前，vLLM 实验性地支持多模态模型的 Tower 和 Connector 组件的 LoRA。要启用此功能，您需要为 Tower 和 Connector 实现对应的 Token 辅助函数。有关此方法背后原理的更多详细信息，请参阅 [PR 26674](https://github.com/vllm-project/vllm/pull/26674)。我们欢迎贡献者将 LoRA 支持扩展到其他模型的 Tower 和 Connector 上。请参阅 [Issue 31479](https://github.com/vllm-project/vllm/issues/31479) 以检查当前的模型支持状态。
+Currently, vLLM experimentally supports LoRA for the Tower and Connector components of multi-modal models. To enable this feature, you need to implement the corresponding token helper functions for the tower and connector. For more details on the rationale behind this approach, please refer to [PR 26674](https://github.com/vllm-project/vllm/pull/26674). We welcome contributions to extend LoRA support to additional models' tower and connector. Please refer to [Issue 31479](https://github.com/vllm-project/vllm/issues/31479) to check the current model support status.
 
-## 多模态模型的默认 LoRA 模型
+## Default LoRA Models For Multimodal Models
 
-某些模型，例如 [Granite Speech](https://huggingface.co/ibm-granite/granite-speech-3.3-8b) 和 [Phi-4-multimodal-instruct](https://huggingface.co/microsoft/Phi-4-multimodal-instruct) 多模态模型，包含一些在给定模态存在时期望始终应用的 LoRA 适配器。若使用上述方法来管理可能会有些繁琐，因为这要求用户发送 `LoRARequest`（离线），或者在基座模型和 LoRA 模型之间根据请求的多模态数据内容进行请求过滤（服务器）。
+Some models, e.g., [Granite Speech](https://huggingface.co/ibm-granite/granite-speech-3.3-8b) and [Phi-4-multimodal-instruct](https://huggingface.co/microsoft/Phi-4-multimodal-instruct) multimodal, contain LoRA adapter(s) that are expected to always be applied when a given modality is present. This can be a bit tedious to manage with the above approaches, as it requires the user to send the `LoRARequest` (offline) or to filter requests between the base model and LoRA model (server) depending on the content of the request's multimodal data.
 
-为此，我们允许注册默认的多模态 LoRA 来自动处理此过程，用户可以将每种模态映射到一个 LoRA 适配器，以便在相应的输入存在时自动应用它。请注意，目前我们每个提示词仅允许使用一个 LoRA；如果提供了注册到不同模态的多种模态输入，它们都将不会被应用。
+To this end, we allow registration of default multimodal LoRAs to handle this automatically, where users can map each modality to a LoRA adapter to automatically apply it when the corresponding inputs are present. Note that currently, we only allow one LoRA per prompt; if several modalities are provided, each of which are registered to a given modality, none of them will be applied.
 
-??? code "离线推理的示例用法"
+??? code "Example usage for offline inference"
 
     ```python
     from transformers import AutoTokenizer
@@ -339,7 +365,7 @@ curl -X POST http://localhost:8000/v1/load_lora_adapter \
     tokenizer = AutoTokenizer.from_pretrained(model_id)
 
     def get_prompt(question: str, has_audio: bool):
-        """构建要发送给 vLLM 的输入提示词。"""
+        """Build the input prompt to send to vLLM."""
         if has_audio:
             question = f"<|audio|>{question}"
         chat = [
@@ -354,7 +380,8 @@ curl -X POST http://localhost:8000/v1/load_lora_adapter \
         max_lora_rank=64,
         max_model_len=2048,
         limit_mm_per_prompt={"audio": 1},
-        # 只要请求数据中包含音频，就会自动传入一个以 `model_id` 为标识的 `LoRARequest`。
+        # Will always pass a `LoRARequest` with the `model_id`
+        # whenever audio is contained in the request data.
         default_mm_loras = {"audio": model_id},
         enforce_eager=True,
     )
@@ -383,7 +410,7 @@ curl -X POST http://localhost:8000/v1/load_lora_adapter \
     )
     ```
 
-您还可以传递一个 `--default-mm-loras` 的 JSON 字典，将各模态映射到对应的 LoRA 模型 ID。例如，在启动服务器时：
+You can also pass a json dictionary of `--default-mm-loras` mapping modalities to LoRA model IDs. For example, when starting the server:
 
 ```bash
 vllm serve ibm-granite/granite-speech-3.3-2b \
@@ -393,37 +420,37 @@ vllm serve ibm-granite/granite-speech-3.3-2b \
     --max-lora-rank 64
 ```
 
-注意：默认的多模态 LoRA 当前仅适用于 `.generate` 和聊天补全接口（chat completions）。
+Note: Default multimodal LoRAs are currently only available for `.generate` and chat completions.
 
-## 使用建议 (Using Tips)
+## Using Tips
 
-### 配置 `max_lora_rank`
+### Configuring `max_lora_rank`
 
-`--max-lora-rank` 参数控制允许的 LoRA 适配器的最大 rank。此设置会影响内存分配和性能：
+The `--max-lora-rank` parameter controls the maximum rank allowed for LoRA adapters. This setting affects memory allocation and performance:
 
-- **将其设置为您计划使用的所有 LoRA 适配器中的最大 rank**。
-- **避免将其设置得过高** —— 使用远大于所需的值会浪费内存，并可能导致性能问题。
+- **Set it to the maximum rank** among all LoRA adapters you plan to use
+- **Avoid setting it too high** - using a value much larger than needed wastes memory and can cause performance issues
 
-例如，如果您的 LoRA 适配器的 rank 分别为 [16, 32, 64]，请使用 `--max-lora-rank 64` 而不是 256：
+For example, if your LoRA adapters have ranks [16, 32, 64], use `--max-lora-rank 64` rather than 256
 
 ```bash
-# 推荐：与实际的最大 rank 匹配
+# Good: matches actual maximum rank
 vllm serve model --enable-lora --max-lora-rank 64
 
-# 不推荐：不必要地过高，浪费内存
+# Bad: unnecessarily high, wastes memory
 vllm serve model --enable-lora --max-lora-rank 256
 ```
 
-### 限制 LoRA 仅作用于特定模块
+### Restricting LoRA to Specific Modules
 
-`--lora-target-modules` 参数允许您在部署时限制哪些模型模块应用 LoRA。这在您仅需要对特定层进行性能微调时非常有用：
+The `--lora-target-modules` parameter allows you to restrict which model modules have LoRA applied at deployment time. This is useful for performance tuning when you only need LoRA on specific layers:
 
 ```bash
-# 仅对输出投影层（output projection layers）应用 LoRA
+# Apply LoRA only to output projection layers
 vllm serve model --enable-lora --lora-target-modules o_proj
 
-# 对多个特定模块应用 LoRA
+# Apply LoRA to multiple specific modules
 vllm serve model --enable-lora --lora-target-modules o_proj qkv_proj down_proj
 ```
 
-未指定 `--lora-target-modules` 时，LoRA 将默认应用于模型中所有支持的模块。此参数接受模块名称的后缀（即模块名称的最后一部分），例如 `o_proj`、`qkv_proj`、`gate_proj` 等。
+When `--lora-target-modules` is not specified, LoRA will be applied to all supported modules in the model. This parameter accepts module suffixes (the last component of the module name), such as `o_proj`, `qkv_proj`, `gate_proj`, etc.

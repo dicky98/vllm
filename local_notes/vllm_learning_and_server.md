@@ -179,9 +179,9 @@ curl http://localhost:8000/v1/chat/completions \
 
 ## 下一步学习内容
 
-- `docs/design/paged_attention.md`：为什么 vLLM 以不同的方式管理 KV 缓存。
-- `docs/design/arch_overview.md`：核心架构。
-- `docs/features/automatic_prefix_caching.md`：重复提示词优化（Prefix Caching）。
-- `docs/features/quantization/README.md`：内存与吞吐量权衡（量化）。
-- `docs/features/lora.md`：适配器服务（LoRA）。
-- `docs/usage/metrics.md`：运维指标与可见性。
+- `docs/design/paged_attention_zh.md`：为什么 vLLM 以不同的方式管理 KV 缓存。
+- `docs/design/arch_overview_zh.md`：核心架构。
+- `docs/features/automatic_prefix_caching_zh.md`：重复提示词优化（Prefix Caching）。
+- `docs/features/quantization/README_zh.md`：内存与吞吐量权衡（量化）。
+- `docs/features/lora_zh.md`：适配器服务（LoRA）。
+- `docs/usage/metrics_zh.md`：运维指标与可见性。
